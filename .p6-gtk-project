@@ -1,0 +1,3 @@
+prefix=BABL
+modules=BABL::Raw::Types
+backups=backup,bitbucket,google-backup,azure-backup
