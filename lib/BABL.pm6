@@ -5,48 +5,189 @@ use NativeCall;
 use GLib::Raw::Types;
 use GLib::Roles::Pointers;
 
+use GLib::Roles::Object;
 use GLib::Roles::StaticClass;
 
 class Babl is repr<CPointer> is export does GLib::Roles::Pointers;
 
-class BABL is export {
+constant BablModelFlag is export := guint32;
+our enum BablModelFlagEnum is export (
+  BABL_MODEL_FLAG_ALPHA      => 1 +<  1,
+  BABL_MODEL_FLAG_ASSOCIATED => 1 +<  2,
+  BABL_MODEL_FLAG_INVERTED   => 1 +<  3,
+  BABL_MODEL_FLAG_LINEAR     => 1 +< 10,
+  BABL_MODEL_FLAG_NONLINEAR  => 1 +< 11,
+  BABL_MODEL_FLAG_PERCEPTUAL => 1 +< 12,
+  BABL_MODEL_FLAG_GRAY       => 1 +< 20,
+  BABL_MODEL_FLAG_RGB        => 1 +< 21,
+  BABL_MODEL_FLAG_CIE        => 1 +< 23,
+  BABL_MODEL_FLAG_CMYK       => 1 +< 24,
+);
 
-  method exit () {
+constant BablSpaceFlags is export := guint32;
+our enum BablSpaceFlagsEnum is export (
+  BABL_SPACE_FLAG_NONE     => 0,
+  BABL_SPACE_FLAG_EQUALIZE => 1,
+);
+
+# Existing implementation needs to group all BABL-invocant routines into this
+# class, no matter the sub prefix. Leave the extra stuff to BABL::Utils... (?)
+
+class BABL is export {
+  has Babl() $!b;
+
+  method BABL::Babl
+  #  is also<Babl>
+  { $!b }
+
+  method init {
+    babl_init();
+  }
+
+  method exit {
     babl_exit();
   }
 
+  method get_bytes_per_pixel (Babl() $format) {
+    babl_format_get_bytes_per_pixel($format);
+  }
+
+  method get_encoding (Babl() $babl) {
+    babl_format_get_encoding($babl);
+  }
+
+  method get_model (Babl() $format) {
+    babl_format_get_model($format);
+  }
+
+  method get_n_components (Babl() $format) {
+    babl_format_get_n_components($format);
+  }
+
+  method get_space (Babl() $format) {
+    babl_format_get_space($format);
+  }
+
+  method get_type (Babl() $format, gint $component_index) {
+    babl_format_get_type($format, $component_index);
+  }
+
+  method get_destination_space {
+    babl_conversion_get_destination_space($!b);
+  }
+
+  method get_source_space {
+    babl_conversion_get_source_space($!b);
+  }
+
   method fast_fish (
-    Pointer $source_format,
-    Pointer $destination_format,
-    Str $performance
+    Babl() $source_format,
+    Babl() $destination_format,
+    Str() $performance
   ) {
     babl_fast_fish($source_format, $destination_format, $performance);
   }
 
-  method fish (Pointer $source_format, Pointer $destination_format) {
+  method fish (Babl() $source_format, Babl() $destination_format) {
     babl_fish($source_format, $destination_format);
   }
 
-  method get_name (Babl $babl) {
+  multi method get (
+    Babl() $space,
+    gdouble $xw is rw,
+    gdouble $yw is rw,
+    gdouble $xr is rw,
+    gdouble $yr is rw,
+    gdouble $xg is rw,
+    gdouble $yg is rw,
+    gdouble $xb is rw,
+    gdouble $yb is rw,
+    Babl() $red_trc,
+    Babl() $green_trc,
+    Babl() $blue_trc
+  ) {
+    babl_space_get(
+      $space,
+      $xw,
+      $yw,
+      $xr,
+      $yr,
+      $xg,
+      $yg,
+      $xb,
+      $yb,
+      $red_trc,
+      $green_trc,
+      $blue_trc
+    );
+  }
+
+  method get_icc (Babl() $babl, gint $length is rw) {
+    babl_space_get_icc($babl, $length is rw);
+  }
+
+  method get_name (Babl() $babl) {
     babl_get_name($babl);
   }
 
-  method get_user_data (Babl $babl) {
+  method get_rgb_luminance (
+    Babl() $space,
+    gdouble $red_luminance is rw,
+    gdouble $green_luminance is rw,
+    gdouble $blue_luminance is rw
+  ) {
+    babl_space_get_rgb_luminance(
+      $space,
+      $red_luminance,
+      $green_luminance,
+      $blue_luminance
+    );
+  }
+
+  method get_user_data (Babl() $babl) {
     babl_get_user_data($babl);
   }
 
+  method has_alpha (Babl() $format) {
+    so babl_format_has_alpha($format);
+  }
+
+  method is (Babl() $babl, Str() $model_name) {
+    babl_model_is($babl, $model_name);
+  }
+
+  method is_cmyk (Babl() $space) {
+    so babl_space_is_cmyk($space);
+  }
+
+  method is_gray (Babl() $space) {
+    so babl_space_is_gray($space);
+  }
+
+  method is_format_n (Babl() $format) {
+    so babl_format_is_format_n($format);
+  }
+
+  method is_palette (Babl() $format) {
+    so babl_format_is_palette($format);
+  }
+
+  method n (Babl() $type, gint $components) {
+    babl_format_n($type, $components);
+  }
+
   method icc_get_key (
-    Str $icc_data,
+    Str() $icc_data,
     gint $icc_length,
-    Str $key,
-    Str $language,
-    Str $country
+    Str() $key,
+    Str() $language,
+    Str() $country
   ) {
     babl_icc_get_key($icc_data, $icc_length, $key, $language, $country);
   }
 
   method process (
-    Babl $babl_fish,
+    Babl() $babl_fish,
     Pointer $source,
     Pointer $destination,
     long $n
@@ -55,7 +196,7 @@ class BABL is export {
   }
 
   method process_rows (
-    Babl $babl_fish,
+    Babl() $babl_fish,
     Pointer $source,
     gint $source_stride,
     Pointer $dest,
@@ -74,15 +215,28 @@ class BABL is export {
     );
   }
 
+  method reset (Babl() $babl) {
+    babl_palette_reset($babl);
+  }
+
   method sampling (gint $horizontal, gint $vertical) {
     babl_sampling($horizontal, $vertical);
   }
 
-  method set_user_data (Babl $babl, Pointer $data) {
+  method set_palette (
+    Babl() $babl,
+    Babl() $format,
+    Pointer $data,
+    gint $count
+  ) {
+    babl_palette_set_palette($babl, $format, $data, $count);
+  }
+
+  method set_user_data (Babl() $babl, Pointer $data) {
     babl_set_user_data($babl, $data);
   }
 
-  method trc (Str $name) {
+  method trc (Str() $name) {
     babl_trc($name);
   }
 
@@ -90,7 +244,7 @@ class BABL is export {
     babl_trc_gamma($gamma);
   }
 
-  method type (Str $name) {
+  method type (Str() $name) {
     babl_type($name);
   }
 
@@ -98,11 +252,15 @@ class BABL is export {
     babl_type_new($first_arg);
   }
 
+  method with_trc (Babl() $space, Babl() $trc) {
+    babl_space_with_trc($space, $trc);
+  }
+
 }
 
 class BABL::Component is export {
 
-  method get (Str $name) {
+  method get (Str() $name) {
     babl_component($name);
   }
 
@@ -114,14 +272,6 @@ class BABL::Component is export {
 
 class BABL::Conversion is export {
 
-  method get_destination_space (Babl $conversion) {
-    babl_conversion_get_destination_space($conversion);
-  }
-
-  method get_source_space (Babl $conversion) {
-    babl_conversion_get_source_space($conversion);
-  }
-
   method new (Pointer $first_arg, ...) {
     babl_conversion_new($first_arg);
   }
@@ -131,59 +281,19 @@ class BABL::Conversion is export {
 class BABL::Format is export {
   also does GLib::Roles::StaticClass;
 
-  method exists (Str $name) {
+  method exists (Str() $name) {
     babl_format_exists($name);
   }
 
-  method get (Str $encoding) {
+  method get (Str() $encoding) {
     babl_format($encoding);
-  }
-
-  method get_bytes_per_pixel (Babl $format) {
-    babl_format_get_bytes_per_pixel($format);
-  }
-
-  method get_encoding (Babl $babl) {
-    babl_format_get_encoding($babl);
-  }
-
-  method get_model (Babl $format) {
-    babl_format_get_model($format);
-  }
-
-  method get_n_components (Babl $format) {
-    babl_format_get_n_components($format);
-  }
-
-  method get_space (Babl $format) {
-    babl_format_get_space($format);
-  }
-
-  method get_type (Babl $format, gint $component_index) {
-    babl_format_get_type($format, $component_index);
-  }
-
-  method has_alpha (Babl $format) {
-    babl_format_has_alpha($format);
-  }
-
-  method is_format_n (Babl $format) {
-    babl_format_is_format_n($format);
-  }
-
-  method is_palette (Babl $format) {
-    babl_format_is_palette($format);
-  }
-
-  method n (Babl $type, gint $components) {
-    babl_format_n($type, $components);
   }
 
   # method new (Pointer $first_arg, ...) {
   #   babl_format_new($first_arg);
   # }
 
-  method with_space (Str $encoding, Babl $space) {
+  method with_space (Str() $encoding, Babl() $space) {
     babl_format_with_space($encoding, $space);
   }
 
@@ -191,19 +301,15 @@ class BABL::Format is export {
 
 class BABL::Model is export {
 
-  method get (Str $name) {
+  method get (Str() $name) {
     babl_model($name);
-  }
-
-  method is (Babl $babl, Str $model_name) {
-    babl_model_is($babl, $model_name);
   }
 
   method new (Pointer $first_arg, ...) {
     babl_model_new($first_arg);
   }
 
-  method with_space (Str $name, Babl $space) {
+  method with_space (Str() $name, Babl() $space) {
     babl_model_with_space($name, $space);
   }
 
@@ -211,15 +317,15 @@ class BABL::Model is export {
 
 class BABL::Palette is export {
 
-  method new (Str $name, Babl $format_u8, Babl $format_u8_with_alpha) {
+  method new (Str() $name, Babl() $format_u8, Babl() $format_u8_with_alpha) {
     babl_new_palette($name, $format_u8, $format_u8_with_alpha);
   }
 
   method new_palette_with_space (
-    Str $name,
-    Babl $space,
-    Babl $format_u8,
-    Babl $format_u8_with_alpha
+    Str() $name,
+    Babl() $space,
+    Babl() $format_u8,
+    Babl() $format_u8_with_alpha
   ) {
     babl_new_palette_with_space(
       $name,
@@ -229,20 +335,12 @@ class BABL::Palette is export {
     );
   }
 
-  method reset (Babl $babl) {
-    babl_palette_reset($babl);
-  }
-
-  method set_palette (Babl $babl, Babl $format, Pointer $data, gint $count) {
-    babl_palette_set_palette($babl, $format, $data, $count);
-  }
-
 }
 
 class BABL::Space is export {
 
   method from_chromaticities (
-    Str $name,
+    Str() $name,
     gdouble $wx,
     gdouble $wy,
     gdouble $rx,
@@ -251,9 +349,9 @@ class BABL::Space is export {
     gdouble $gy,
     gdouble $bx,
     gdouble $by,
-    Babl $trc_red,
-    Babl $trc_green,
-    Babl $trc_blue,
+    Babl() $trc_red,
+    Babl() $trc_green,
+    Babl() $trc_blue,
     BablSpaceFlags $flags
   ) {
     babl_space_from_chromaticities(
@@ -274,16 +372,16 @@ class BABL::Space is export {
   }
 
   method from_icc (
-    Str $icc_data,
+    Str() $icc_data,
     gint $icc_length,
     BablIccIntent $intent,
-    Str $error
+    Str() $error
   ) {
     babl_space_from_icc($icc_data, $icc_length, $intent, $error);
   }
 
   method from_rgbxyz_matrix (
-    Str $name,
+    Str() $name,
     gdouble $wx,
     gdouble $wy,
     gdouble $wz,
@@ -296,9 +394,9 @@ class BABL::Space is export {
     gdouble $rz,
     gdouble $gz,
     gdouble $bz,
-    Babl $trc_red,
-    Babl $trc_green,
-    Babl $trc_blue
+    Babl() $trc_red,
+    Babl() $trc_green,
+    Babl() $trc_blue
   ) {
     babl_space_from_rgbxyz_matrix(
       $name,
@@ -320,68 +418,8 @@ class BABL::Space is export {
     );
   }
 
-  multi method get (Str $name) {
+  multi method get (Str() $name) {
     babl_space($name);
-  }
-
-  multi method get (
-    Babl $space,
-    gdouble $xw is rw,
-    gdouble $yw is rw,
-    gdouble $xr is rw,
-    gdouble $yr is rw,
-    gdouble $xg is rw,
-    gdouble $yg is rw,
-    gdouble $xb is rw,
-    gdouble $yb is rw,
-    Babl $red_trc,
-    Babl $green_trc,
-    Babl $blue_trc
-  ) {
-    babl_space_get(
-      $space,
-      $xw,
-      $yw,
-      $xr,
-      $yr,
-      $xg,
-      $yg,
-      $xb,
-      $yb,
-      $red_trc,
-      $green_trc,
-      $blue_trc
-    );
-  }
-
-  method get_icc (Babl $babl, gint $length is rw) {
-    babl_space_get_icc($babl, $length is rw);
-  }
-
-  method get_rgb_luminance (
-    Babl $space,
-    gdouble $red_luminance is rw,
-    gdouble $green_luminance is rw,
-    gdouble $blue_luminance is rw
-  ) {
-    babl_space_get_rgb_luminance(
-      $space,
-      $red_luminance,
-      $green_luminance,
-      $blue_luminance
-    );
-  }
-
-  method is_cmyk (Babl $space) {
-    so babl_space_is_cmyk($space);
-  }
-
-  method is_gray (Babl $space) {
-    so babl_space_is_gray($space);
-  }
-
-  method with_trc (Babl $space, Babl $trc) {
-    babl_space_with_trc($space, $trc);
   }
 
 }
@@ -395,7 +433,12 @@ INIT {
 
 ### /usr/include/babl-0.1/babl/babl.h
 
-sub babl_component (Str $name)
+sub bab_init ()
+  is native(babl)
+  is export
+{ * }
+
+sub babl_component (Str() $name)
   returns Babl
   is native(babl)
   is export
@@ -407,13 +450,13 @@ sub babl_component_new (Pointer $first_arg, ...)
   is export
 { * }
 
-sub babl_conversion_get_destination_space (Babl $conversion)
+sub babl_conversion_get_destination_space (Babl() $conversion)
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_conversion_get_source_space (Babl $conversion)
+sub babl_conversion_get_source_space (Babl() $conversion)
   returns Babl
   is native(babl)
   is export
@@ -433,7 +476,7 @@ sub babl_exit ()
 sub babl_fast_fish (
   Pointer $source_format,
   Pointer $destination_format,
-  Str $performance
+  Str() $performance
 )
   returns Babl
   is native(babl)
@@ -446,73 +489,73 @@ sub babl_fish (Pointer $source_format, Pointer $destination_format)
   is export
 { * }
 
-sub babl_format (Str $encoding)
+sub babl_format (Str() $encoding)
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_format_exists (Str $name)
+sub babl_format_exists (Str() $name)
   returns gint
   is native(babl)
   is export
 { * }
 
-sub babl_format_get_bytes_per_pixel (Babl $format)
+sub babl_format_get_bytes_per_pixel (Babl() $format)
   returns gint
   is native(babl)
   is export
 { * }
 
-sub babl_format_get_encoding (Babl $babl)
+sub babl_format_get_encoding (Babl() $babl)
   returns char
   is native(babl)
   is export
 { * }
 
-sub babl_format_get_model (Babl $format)
+sub babl_format_get_model (Babl() $format)
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_format_get_n_components (Babl $format)
+sub babl_format_get_n_components (Babl() $format)
   returns gint
   is native(babl)
   is export
 { * }
 
-sub babl_format_get_space (Babl $format)
+sub babl_format_get_space (Babl() $format)
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_format_get_type (Babl $format, gint $component_index)
+sub babl_format_get_type (Babl() $format, gint $component_index)
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_format_has_alpha (Babl $format)
+sub babl_format_has_alpha (Babl() $format)
   returns gint
   is native(babl)
   is export
 { * }
 
-sub babl_format_is_format_n (Babl $format)
+sub babl_format_is_format_n (Babl() $format)
   returns gint
   is native(babl)
   is export
 { * }
 
-sub babl_format_is_palette (Babl $format)
+sub babl_format_is_palette (Babl() $format)
   returns gint
   is native(babl)
   is export
 { * }
 
-sub babl_format_n (Babl $type, gint $components)
+sub babl_format_n (Babl() $type, gint $components)
   returns Babl
   is native(babl)
   is export
@@ -524,42 +567,42 @@ sub babl_format_new (Pointer $first_arg, ...)
   is export
 { * }
 
-sub babl_format_with_space (Str $encoding, Babl $space)
+sub babl_format_with_space (Str() $encoding, Babl() $space)
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_get_name (Babl $babl)
+sub babl_get_name (Babl() $babl)
   returns char
   is native(babl)
   is export
 { * }
 
-sub babl_get_user_data (Babl $babl)
+sub babl_get_user_data (Babl() $babl)
   is native(babl)
   is export
 { * }
 
 sub babl_icc_get_key (
-  Str $icc_data,
+  Str() $icc_data,
   gint $icc_length,
-  Str $key,
-  Str $language,
-  Str $country
+  Str() $key,
+  Str() $language,
+  Str() $country
 )
   returns char
   is native(babl)
   is export
 { * }
 
-sub babl_model (Str $name)
+sub babl_model (Str() $name)
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_model_is (Babl $babl, Str $model_name)
+sub babl_model_is (Babl() $babl, Str() $model_name)
   returns gint
   is native(babl)
   is export
@@ -571,37 +614,37 @@ sub babl_model_new (Pointer $first_arg, ...)
   is export
 { * }
 
-sub babl_model_with_space (Str $name, Babl $space)
+sub babl_model_with_space (Str() $name, Babl() $space)
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_new_palette (Str $name, Babl $format_u8, Babl $format_u8_with_alpha)
+sub babl_new_palette (Str() $name, Babl() $format_u8, Babl() $format_u8_with_alpha)
   returns Babl
   is native(babl)
   is export
 { * }
 
 sub babl_new_palette_with_space (
-  Str $name,
-  Babl $space,
-  Babl $format_u8,
-  Babl $format_u8_with_alpha
+  Str() $name,
+  Babl() $space,
+  Babl() $format_u8,
+  Babl() $format_u8_with_alpha
 )
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_palette_reset (Babl $babl)
+sub babl_palette_reset (Babl() $babl)
   is native(babl)
   is export
 { * }
 
 sub babl_palette_set_palette (
-  Babl $babl,
-  Babl $format,
+  Babl() $babl,
+  Babl() $format,
   Pointer $data,
   gint $count
 )
@@ -610,7 +653,7 @@ sub babl_palette_set_palette (
 { * }
 
 sub babl_process (
-  Babl $babl_fish,
+  Babl() $babl_fish,
   Pointer $source,
   Pointer $destination,
   long $n
@@ -621,7 +664,7 @@ sub babl_process (
 { * }
 
 sub babl_process_rows (
-  Babl $babl_fish,
+  Babl() $babl_fish,
   Pointer $source,
   gint $source_stride,
   Pointer $dest,
@@ -640,19 +683,19 @@ sub babl_sampling (gint $horizontal, gint $vertical)
   is export
 { * }
 
-sub babl_set_user_data (Babl $babl, Pointer $data)
+sub babl_set_user_data (Babl() $babl, Pointer $data)
   is native(babl)
   is export
 { * }
 
-sub babl_space (Str $name)
+sub babl_space (Str() $name)
   returns Babl
   is native(babl)
   is export
 { * }
 
 sub babl_space_from_chromaticities (
-  Str $name,
+  Str() $name,
   gdouble $wx,
   gdouble $wy,
   gdouble $rx,
@@ -661,9 +704,9 @@ sub babl_space_from_chromaticities (
   gdouble $gy,
   gdouble $bx,
   gdouble $by,
-  Babl $trc_red,
-  Babl $trc_green,
-  Babl $trc_blue,
+  Babl() $trc_red,
+  Babl() $trc_green,
+  Babl() $trc_blue,
   BablSpaceFlags $flags
 )
   returns Babl
@@ -672,10 +715,10 @@ sub babl_space_from_chromaticities (
 { * }
 
 sub babl_space_from_icc (
-  Str $icc_data,
+  Str() $icc_data,
   gint $icc_length,
   BablIccIntent $intent,
-  Str $error
+  Str() $error
 )
   returns Babl
   is native(babl)
@@ -683,7 +726,7 @@ sub babl_space_from_icc (
 { * }
 
 sub babl_space_from_rgbxyz_matrix (
-  Str $name,
+  Str() $name,
   gdouble $wx,
   gdouble $wy,
   gdouble $wz,
@@ -696,9 +739,9 @@ sub babl_space_from_rgbxyz_matrix (
   gdouble $rz,
   gdouble $gz,
   gdouble $bz,
-  Babl $trc_red,
-  Babl $trc_green,
-  Babl $trc_blue
+  Babl() $trc_red,
+  Babl() $trc_green,
+  Babl() $trc_blue
 )
   returns Babl
   is native(babl)
@@ -706,7 +749,7 @@ sub babl_space_from_rgbxyz_matrix (
 { * }
 
 sub babl_space_get (
-  Babl $space,
+  Babl() $space,
   gdouble $xw is rw,
   gdouble $yw is rw,
   gdouble $xr is rw,
@@ -715,22 +758,22 @@ sub babl_space_get (
   gdouble $yg is rw,
   gdouble $xb is rw,
   gdouble $yb is rw,
-  Babl $red_trc,
-  Babl $green_trc,
-  Babl $blue_trc
+  Babl() $red_trc,
+  Babl() $green_trc,
+  Babl() $blue_trc
 )
   is native(babl)
   is export
 { * }
 
-sub babl_space_get_icc (Babl $babl, gint $length is rw)
+sub babl_space_get_icc (Babl() $babl, gint $length is rw)
   returns char
   is native(babl)
   is export
 { * }
 
 sub babl_space_get_rgb_luminance (
-  Babl $space,
+  Babl() $space,
   gdouble $red_luminance is rw,
   gdouble $green_luminance is rw,
   gdouble $blue_luminance is rw
@@ -739,25 +782,25 @@ sub babl_space_get_rgb_luminance (
   is export
 { * }
 
-sub babl_space_is_cmyk (Babl $space)
+sub babl_space_is_cmyk (Babl() $space)
   returns gint
   is native(babl)
   is export
 { * }
 
-sub babl_space_is_gray (Babl $space)
+sub babl_space_is_gray (Babl() $space)
   returns gint
   is native(babl)
   is export
 { * }
 
-sub babl_space_with_trc (Babl $space, Babl $trc)
+sub babl_space_with_trc (Babl() $space, Babl() $trc)
   returns Babl
   is native(babl)
   is export
 { * }
 
-sub babl_trc (Str $name)
+sub babl_trc (Str() $name)
   returns Babl
   is native(babl)
   is export
@@ -769,7 +812,7 @@ sub babl_trc_gamma (gdouble $gamma)
   is export
 { * }
 
-sub babl_type (Str $name)
+sub babl_type (Str() $name)
   returns Babl
   is native(babl)
   is export
